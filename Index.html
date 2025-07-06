@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Buscador de Libros con Biblioteca</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 flex justify-center">
+  <div class="w-full max-w-3xl bg-white p-6 rounded-xl shadow-lg">
+    <h1 class="text-2xl font-bold mb-4 text-center text-blue-600">Buscador de Libros</h1>
+    <div class="flex gap-2 mb-4">
+      <input id="searchInput" class="flex-1 border p-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder="ISBN o título">
+      <button onclick="buscarLibros()" class="bg-blue-500 text-white px-4 rounded hover:bg-blue-600">Buscar</button>
+    </div>
+    <div id="resultado" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+  </div>
+
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzrbN65z6-Fel8zvXY-41OE6vStJWAxBgTMygswVNgP5ltQ7pkKD9iPdfuWNU1rvaTU/exec'; // Reemplazar con tu Web App URL
+
+    async function buscarLibros() {
+      const input = document.getElementById('searchInput').value.trim();
+      const cont = document.getElementById('resultado');
+      cont.innerHTML = '';
+      if (!input) return cont.innerHTML = '<p class="text-center text-red-500">Ingresa ISBN o título.</p>';
+      const isISBN = /^\d{9,13}$/.test(input.replace(/-/g, ''));
+
+      if (isISBN) {
+        const isbn = input.replace(/-/g, '');
+        const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`;
+        const res = await fetch(url);
+        const json = await res.json();
+        const data = json[`ISBN:${isbn}`];
+        if (!data) return cont.innerHTML = '<p class="text-red-500">Libro no encontrado.</p>';
+        cont.innerHTML = `<div class="col-span-full">${tarjetaDesdeData(data, isbn)}</div>`;
+      } else {
+        const url = `https://openlibrary.org/search.json?title=${encodeURIComponent(input)}&limit=10`;
+        const res = await fetch(url);
+        const json = await res.json();
+        if (!json.docs.length) return cont.innerHTML = '<p class="text-red-500">No se encontraron libros.</p>';
+        for (const doc of json.docs) {
+          const isbn = doc.isbn?.[0] || '';
+          cont.innerHTML += tarjetaDesdeDoc(doc, isbn);
+        }
+      }
+    }
+
+    function tarjetaDesdeDoc(doc, isbn = '') {
+      const title = doc.title || 'Sin título';
+      const author = doc.author_name?.join(', ') || 'Desconocido';
+      const year = doc.first_publish_year || 'N/D';
+      const lang = doc.language?.[0]?.toUpperCase() || 'N/D';
+      const cover = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg` : 'https://via.placeholder.com/150x220?text=Sin+portada';
+      const libro = { title, author, year, lang, cover, isbn };
+
+      return `
+      <div class="bg-white p-4 rounded shadow flex flex-col">
+        <img src="${cover}" alt="Portada" class="mb-2 rounded">
+        <h2 class="font-semibold">${title}</h2>
+        <p><strong>Autor:</strong> ${author}</p>
+        <p><strong>Año:</strong> ${year}</p>
+        <p><strong>Idioma:</strong> ${lang}</p>
+        <p><strong>ISBN:</strong> ${isbn || 'N/D'}</p>
+        <button onclick='agregarBiblioteca(${JSON.stringify(libro)})'
+          class="mt-auto bg-green-500 text-white py-1 rounded hover:bg-green-600">
+          Agregar a biblioteca
+        </button>
+      </div>`;
+    }
+
+    function tarjetaDesdeData(data, isbn = '') {
+      const title = data.title || 'Sin título';
+      const author = data.authors?.map(a => a.name).join(', ') || 'Desconocido';
+      const year = data.publish_date || 'N/D';
+      const lang = data.languages?.[0]?.key?.replace('/languages/', '').toUpperCase() || 'N/D';
+      const cover = data.cover?.medium || 'https://via.placeholder.com/150x220?text=Sin+portada';
+      const libro = { title, author, year, lang, cover, isbn };
+
+      return `
+      <div class="bg-white p-4 rounded shadow flex flex-col sm:flex-row gap-4">
+        <img src="${cover}" class="w-32 h-auto rounded">
+        <div>
+          <h2 class="text-lg font-semibold">${title}</h2>
+          <p><strong>Autor:</strong> ${author}</p>
+          <p><strong>Año:</strong> ${year}</p>
+          <p><strong>Idioma:</strong> ${lang}</p>
+          <p><strong>ISBN:</strong> ${isbn || 'N/D'}</p>
+          <button onclick='agregarBiblioteca(${JSON.stringify(libro)})'
+            class="mt-2 bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
+            Agregar a biblioteca
+          </button>
+        </div>
+      </div>`;
+    }
+
+    async function agregarBiblioteca(libro) {
+      try {
+        await fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(libro)
+        });
+        alert(`Agregado: ${libro.title}`);
+      } catch (e) {
+        console.error(e);
+        alert('Error al agregar.');
+      }
+    }
+  </script>
+</body>
+</html>
